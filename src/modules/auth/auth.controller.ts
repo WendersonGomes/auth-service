@@ -7,9 +7,9 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { InternalServiceGuard } from '../../common/guards/internal-service.guard';
-import { AuthService } from './auth.service';
-import { SyncProfileDto } from './dto/sync-profile.dto';
+import { InternalServiceGuard } from '../../common/guards/internal-service.guard.js';
+import { AuthService } from './auth.service.js';
+import { SyncProfileDto } from './dto/sync-profile.dto.js';
 
 @Controller('internal/auth')
 @UseGuards(InternalServiceGuard)

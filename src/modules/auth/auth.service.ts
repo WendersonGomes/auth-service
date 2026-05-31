@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
-import { PrismaService } from '../../infra/prisma/prisma.service';
-import { SyncProfileDto } from './dto/sync-profile.dto';
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { SyncProfileDto } from './dto/sync-profile.dto.js';
 
 @Injectable()
 export class AuthService {
