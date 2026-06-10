@@ -1,18 +1,13 @@
-import { IsEmail, IsOptional, IsString, IsUrl, IsUUID, } from 'class-validator';
+import { IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 export class SyncProfileDto {
-  @IsUUID()
-  userId!: string;
-
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   displayName?: string;
 
   @IsOptional()
   @IsUrl()
+  @MaxLength(2048)
   avatarUrl?: string;
 }

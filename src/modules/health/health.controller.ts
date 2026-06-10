@@ -1,16 +1,21 @@
-import {
-  Controller,
-  Get,
-  HttpCode,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Controller, Get, HttpCode } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AuthDatabaseUnavailableException } from '../../common/errors/api-error.exception.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 
 @Controller('health')
 export class HealthController {
-  private readonly serviceName = process.env.SERVICE_NAME;
+  private readonly serviceName: string;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    configService: ConfigService,
+  ) {
+    this.serviceName = configService.get<string>(
+      'SERVICE_NAME',
+      'auth-service',
+    );
+  }
 
   @Get('liveness')
   @HttpCode(200)
@@ -30,13 +35,10 @@ export class HealthController {
         SELECT 1
       `;
     } catch {
-      throw new ServiceUnavailableException({
-        status: 'unavailable',
-        service: this.serviceName,
+      throw new AuthDatabaseUnavailableException({
         checks: {
           database: 'down',
         },
-        timestamp: new Date().toISOString(),
       });
     }
 
