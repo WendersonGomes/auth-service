@@ -69,7 +69,7 @@ export class AuthService {
 
   private validateUserId(userId?: string): asserts userId is string {
     if (!userId || !UUID_REGEX.test(userId)) {
-      throw new BadRequestException('Header x-user-id invalido');
+      throw new BadRequestException('User id invalido');
     }
   }
 }

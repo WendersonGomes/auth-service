@@ -20,9 +20,6 @@ type PublicError = {
   details?: unknown;
 };
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -50,15 +47,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : { details: publicError.details }),
     };
 
-    this.logError(request, statusCode, publicError.code);
+    this.logError(request, statusCode, publicError.code, exception);
 
     response.status(statusCode).json(body);
   }
 
-  private toPublicError(
-    exception: unknown,
-    statusCode: number,
-  ): PublicError {
+  private toPublicError(exception: unknown, statusCode: number): PublicError {
     if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
 
@@ -84,15 +78,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     if (statusCode === HttpStatus.UNAUTHORIZED) {
       return {
-        code: 'INTERNAL_AUTH_FAILED',
-        message: API_ERROR_MESSAGES.INTERNAL_AUTH_FAILED,
+        code: 'AUTH_UNAUTHORIZED',
+        message: API_ERROR_MESSAGES.AUTH_UNAUTHORIZED,
       };
     }
 
     if (statusCode === HttpStatus.NOT_FOUND) {
       return {
-        code: 'PROFILE_NOT_FOUND',
-        message: API_ERROR_MESSAGES.PROFILE_NOT_FOUND,
+        code: 'ROUTE_NOT_FOUND',
+        message: API_ERROR_MESSAGES.ROUTE_NOT_FOUND,
       };
     }
 
@@ -132,18 +126,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     request: AuthServiceRequest,
     statusCode: number,
     errorCode: ApiErrorCode,
+    exception: unknown,
   ) {
     const occurredAt = new Date().toISOString();
     const durationMs =
       typeof request.startedAt === 'number'
         ? Date.now() - request.startedAt
         : undefined;
-    const userId =
-      typeof request.internalUserId === 'string' &&
-      UUID_REGEX.test(request.internalUserId)
-        ? request.internalUserId
-        : undefined;
-
     const logPayload = {
       service: this.serviceName,
       requestId: request.requestId,
@@ -152,7 +141,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode,
       errorCode,
       durationMs,
-      ...(userId ? { userId } : {}),
+      ...(this.isDevelopment()
+        ? { error: this.errorDiagnostics(exception) }
+        : {}),
       occurredAt,
     };
 
@@ -175,6 +166,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
   private toApiErrorCode(code: unknown): ApiErrorCode | undefined {
     if (
       code === 'INTERNAL_AUTH_FAILED' ||
+      code === 'AUTH_UNAUTHORIZED' ||
+      code === 'AUTH_SUPABASE_CONFIG_MISSING' ||
+      code === 'AUTH_GOOGLE_OAUTH_URL_FAILED' ||
+      code === 'AUTH_GOOGLE_OAUTH_URL_MISSING' ||
+      code === 'AUTH_INVALID_REDIRECT_URL' ||
+      code === 'AUTH_OAUTH_CODE_EXCHANGE_FAILED' ||
+      code === 'AUTH_OAUTH_SESSION_MISSING' ||
+      code === 'AUTH_EMAIL_MISSING' ||
+      code === 'AUTH_TOKEN_ISSUE_FAILED' ||
+      code === 'AUTH_REFRESH_TOKEN_FAILED' ||
+      code === 'ROUTE_NOT_FOUND' ||
       code === 'VALIDATION_ERROR' ||
       code === 'PROFILE_NOT_FOUND' ||
       code === 'AUTH_DATABASE_UNAVAILABLE' ||
@@ -188,5 +190,72 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
+  }
+
+  private isDevelopment() {
+    return process.env.NODE_ENV === 'development';
+  }
+
+  private errorDiagnostics(exception: unknown) {
+    const base =
+      exception instanceof Error
+        ? {
+            name: exception.name,
+            message: exception.message,
+            stack: exception.stack,
+            cause: this.safeCause((exception as Error & { cause?: unknown }).cause),
+          }
+        : {
+            name: 'UnknownError',
+            message: String(exception),
+            stack: undefined,
+            cause: undefined,
+          };
+
+    return {
+      ...base,
+      details: this.safeExceptionDetails(exception),
+    };
+  }
+
+  private safeExceptionDetails(exception: unknown) {
+    if (!(exception instanceof HttpException)) {
+      return undefined;
+    }
+
+    const response = exception.getResponse();
+
+    if (!this.isRecord(response) || !this.isRecord(response.details)) {
+      return undefined;
+    }
+
+    return Object.fromEntries(
+      Object.entries(response.details).filter(
+        ([key, value]) =>
+          typeof key === 'string' &&
+          ['redirectTo', 'missingVariable', 'supabaseError'].includes(key) &&
+          typeof value === 'string',
+      ),
+    );
+  }
+
+  private safeCause(cause: unknown) {
+    if (!cause) {
+      return undefined;
+    }
+
+    if (cause instanceof Error) {
+      return {
+        name: cause.name,
+        message: cause.message,
+        stack: cause.stack,
+      };
+    }
+
+    if (typeof cause === 'string') {
+      return cause;
+    }
+
+    return undefined;
   }
 }
